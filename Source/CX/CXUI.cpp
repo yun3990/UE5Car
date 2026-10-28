@@ -23,12 +23,8 @@ void UCXUI::UpdateGear(int32 NewGear)
 	// call the Blueprint handler
 	OnGearUpdate(NewGear);
 }
-#include "Blueprint/WidgetTree.h"
-#include "Components/CanvasPanel.h"
-#include "Components/CanvasPanelSlot.h"
-#include "Components/Overlay.h"
-#include "Components/OverlaySlot.h"
 #include "Components/TextBlock.h"
+#include "Components/EditableTextBox.h"
 #include "GameState/CXGameStateBase.h"
 #include "PlayerState/CXPlayerState.h"
 #include "GameFramework/PlayerController.h"
@@ -37,94 +33,46 @@ void UCXUI::UpdateGear(int32 NewGear)
 void UCXUI::NativeConstruct()
 {
     Super::NativeConstruct();
-    if (!MatchStatusText && WidgetTree)
-    {
-        MatchStatusText = WidgetTree->ConstructWidget<UTextBlock>(
-            UTextBlock::StaticClass(), TEXT("MatchStatusText"));
-        MatchStatusText->SetJustification(ETextJustify::Center);
-        MatchStatusText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
-        MatchStatusText->SetShadowColorAndOpacity(FLinearColor::Black);
-        MatchStatusText->SetShadowOffset(FVector2D(1.f, 1.f));
-        FSlateFontInfo Font = MatchStatusText->GetFont();
-        Font.Size = 24;
-        MatchStatusText->SetFont(Font);
-        MatchStatusText->SetVisibility(ESlateVisibility::HitTestInvisible);
-
-        if (UCanvasPanel* Canvas = Cast<UCanvasPanel>(WidgetTree->RootWidget))
-        {
-            UCanvasPanelSlot* StatusSlot = Canvas->AddChildToCanvas(MatchStatusText);
-            StatusSlot->SetAnchors(FAnchors(0.5f, 0.f));
-            StatusSlot->SetAlignment(FVector2D(0.5f, 0.f));
-            StatusSlot->SetPosition(FVector2D(0.f, 24.f));
-            StatusSlot->SetAutoSize(true);
-            StatusSlot->SetZOrder(10);
-        }
-        else
-        {
-            UWidget* PreviousRoot = WidgetTree->RootWidget;
-            UOverlay* Overlay = WidgetTree->ConstructWidget<UOverlay>();
-            WidgetTree->RootWidget = Overlay;
-            if (PreviousRoot)
-            {
-                UOverlaySlot* ContentSlot = Overlay->AddChildToOverlay(PreviousRoot);
-                ContentSlot->SetHorizontalAlignment(HAlign_Fill);
-                ContentSlot->SetVerticalAlignment(VAlign_Fill);
-            }
-            UOverlaySlot* StatusSlot = Overlay->AddChildToOverlay(MatchStatusText);
-            StatusSlot->SetHorizontalAlignment(HAlign_Center);
-            StatusSlot->SetVerticalAlignment(VAlign_Top);
-            StatusSlot->SetPadding(FMargin(0.f, 24.f, 0.f, 0.f));
-        }
-    }
     UpdateMatchStatus();
 }
 
 void UCXUI::UpdateMatchStatus()
 {
-    if (!MatchStatusText || !GetWorld())
+    if (!GetWorld())
     {
         return;
     }
 
     APlayerController* Owner = GetOwningPlayer();
     ACXPlayerState* LocalState = Owner ? Owner->GetPlayerState<ACXPlayerState>() : nullptr;
-    if (UTextBlock* PlayerInfo = Cast<UTextBlock>(GetWidgetFromName(TEXT("PlayerStateInfo"))))
-    {
-        PlayerInfo->SetText(LocalState
-            ? FText::FromString(LocalState->GetPlayerStateInfo())
-            : FText::GetEmpty());
-    }
-
     ACXGameState* State = GetWorld()->GetGameState<ACXGameState>();
-    if (!State)
-    {
-        MatchStatusText->SetText(FText::FromString(TEXT("게임 정보를 기다리는 중")));
-        return;
-    }
+    FString Label = LocalState ? LocalState->GetPlayerStateInfo() : FString();
 
-    FString Label;
-    switch (State->GetCurrentGameState())
+    if (State && State->GetCurrentGameState() == EGameState::Finished)
     {
-    case EGameState::Wating:
-        Label = FString::Printf(TEXT("대기 중 | %d초"), State->GetRemainingTime());
-        break;
-    case EGameState::Playing:
-        Label = FString::Printf(TEXT("게임 진행 중 | %d초"), State->GetRemainingTime());
-        break;
-    case EGameState::Finished:
         if (!LocalState || State->Winners.IsEmpty())
         {
             Label = TEXT("게임 종료 | 결과 확인 중");
         }
         else if (State->IsWinner(LocalState))
         {
-            Label = State->Winners.Num() > 1 ? TEXT("게임 종료 | 공동 승리!") : TEXT("게임 종료 | 승리!");
+            Label = State->Winners.Num() > 1 ? TEXT("공동 승리!") : TEXT("승리!");
         }
         else
         {
-            Label = TEXT("게임 종료 | 패배");
+            Label = TEXT("패배");
         }
-        break;
     }
-    MatchStatusText->SetText(FText::FromString(Label));
+
+    UWidget* PlayerInfo = GetWidgetFromName(TEXT("PlayerStateInfo"));
+    const FText DisplayText = FText::FromString(Label);
+    if (UTextBlock* Text = Cast<UTextBlock>(PlayerInfo))
+    {
+        Text->SetText(DisplayText);
+    }
+    else if (UEditableTextBox* TextBox = Cast<UEditableTextBox>(PlayerInfo))
+    {
+        TextBox->SetIsReadOnly(true);
+        TextBox->SetText(DisplayText);
+    }
 }

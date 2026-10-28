@@ -7,7 +7,7 @@
 #include "CXUI.generated.h"
 
 class UChatUI;
-class UTextBlock;
+
 
 /**
  *  Simple Vehicle HUD class
@@ -46,8 +46,7 @@ public:
 protected:
     virtual void NativeConstruct() override;
 
-    UPROPERTY(Transient)
-    TObjectPtr<UTextBlock> MatchStatusText;
+
 
 protected:
 
